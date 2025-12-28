@@ -1,5 +1,4 @@
 name: Update Notion News
-
 on:
   schedule:
     - cron: '0 * * * *'  # Every hour
@@ -8,28 +7,27 @@ on:
 jobs:
   notion_sync:
     runs-on: ubuntu-latest
-
     env:
       RSS_URL: "http://export.arxiv.org/rss/astro-ph.CO"
       K: "5"
       SOURCE: "arXiv astro-ph.CO"
       NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
       DATABASE_ID: ${{ secrets.DATABASE_ID }}
-
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
+      
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
-
+      
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install feedparser notion-client
-
+          pip install -r requirements.txt
+      
       - name: Test Notion access
         run: |
           python - <<EOF
@@ -38,11 +36,11 @@ jobs:
           notion = Client(auth=os.environ["NOTION_TOKEN"])
           try:
               r = notion.databases.retrieve(database_id=os.environ["DATABASE_ID"])
-              print("Database is accessible:", r["id"])
+              print("✅ Database is accessible:", r["id"])
           except Exception as e:
-              print("Failed to access database:", e)
+              print("❌ Failed to access database:", e)
               exit(1)
           EOF
-
+      
       - name: Run Notion RSS Sync
         run: python notion_news_sync/notion_news.py
