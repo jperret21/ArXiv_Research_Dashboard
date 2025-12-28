@@ -43,44 +43,54 @@ def debug_fetch_arxiv(category: str, max_results: int = 10):
     """DEBUG: Fetch and display ALL articles without filtering."""
     print(f"\n🔍 DEBUG MODE - Fetching {category} without filters\n")
     
-    headers = {'User-Agent': 'ArXiv-Research-Dashboard/1.0'}
-    base_url = "http://export.arxiv.org/api/query"
-    params = {
-        "search_query": f"cat:{category}",
-        "sortBy": "submittedDate",
-        "sortOrder": "descending",
-        "max_results": max_results
-    }
+    try:
+        headers = {'User-Agent': 'ArXiv-Research-Dashboard/1.0'}
+        base_url = "http://export.arxiv.org/api/query"
+        params = {
+            "search_query": f"cat:{category}",
+            "sortBy": "submittedDate",
+            "sortOrder": "descending",
+            "max_results": max_results
+        }
+        
+        print("Making request...")
+        response = requests.get(base_url, params=params, headers=headers, timeout=30)
+        print(f"Got response: {response.status_code}")
+        
+        root = ET.fromstring(response.content)
+        ns = {'atom': 'http://www.w3.org/2005/Atom'}
+        
+        entries = root.findall('atom:entry', ns)
+        print(f"Found {len(entries)} entries\n")
+        
+        cutoff_date = datetime.now() - timedelta(days=7)
+        
+        for i, entry in enumerate(entries, 1):
+            title_elem = entry.find('atom:title', ns)
+            published_elem = entry.find('atom:published', ns)
+            summary_elem = entry.find('atom:summary', ns)
+            
+            if not all([title_elem, published_elem, summary_elem]):
+                continue
+            
+            title = ' '.join(title_elem.text.split())
+            abstract = ' '.join(summary_elem.text.split())
+            published_date = datetime.fromisoformat(published_elem.text.replace('Z', '+00:00'))
+            
+            in_range = published_date >= cutoff_date
+            days_ago = (datetime.now() - published_date).days
+            
+            score, keywords = calculate_relevance(title, abstract)
+            
+            print(f"\n[{i}] {'✅' if in_range else '❌'} {days_ago} days ago")
+            print(f"    Title: {title[:100]}...")
+            print(f"    Score: {score} ⭐ | Keywords: {keywords if keywords else 'NONE'}")
+            print(f"    Date: {published_date.strftime('%Y-%m-%d')}")
     
-    response = requests.get(base_url, params=params, headers=headers, timeout=30)
-    root = ET.fromstring(response.content)
-    ns = {'atom': 'http://www.w3.org/2005/Atom'}
-    
-    cutoff_date = datetime.now() - timedelta(days=7)
-    
-    for i, entry in enumerate(root.findall('atom:entry', ns), 1):
-        title_elem = entry.find('atom:title', ns)
-        published_elem = entry.find('atom:published', ns)
-        summary_elem = entry.find('atom:summary', ns)
-        
-        if not all([title_elem, published_elem, summary_elem]):
-            continue
-        
-        title = ' '.join(title_elem.text.split())
-        abstract = ' '.join(summary_elem.text.split())
-        published_date = datetime.fromisoformat(published_elem.text.replace('Z', '+00:00'))
-        
-        # Check if in date range
-        in_range = published_date >= cutoff_date
-        days_ago = (datetime.now() - published_date).days
-        
-        # Check keywords
-        score, keywords = calculate_relevance(title, abstract)
-        
-        print(f"\n[{i}] {'✅' if in_range else '❌'} {days_ago} days ago")
-        print(f"    Title: {title[:100]}...")
-        print(f"    Score: {score} ⭐ | Keywords found: {keywords if keywords else 'NONE'}")
-        print(f"    Date: {published_date.strftime('%Y-%m-%d')}")
+    except Exception as e:
+        print(f"❌ ERROR in debug: {e}")
+        import traceback
+        traceback.print_exc()
 
 def calculate_relevance(title: str, abstract: str) -> tuple:
     """
