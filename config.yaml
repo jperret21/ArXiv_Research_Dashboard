@@ -34,4 +34,4 @@ arxiv_categories:
   - astro-ph.HE
 
 max_articles: 20
-min_relevance: 1  # Accept everything with at least 1 keyword match
+min_relevance: 0  # Accept everything with at least 1 keyword match
