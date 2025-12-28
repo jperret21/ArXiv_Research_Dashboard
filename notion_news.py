@@ -6,6 +6,7 @@ from notion_client import Client
 from datetime import datetime, timedelta
 from typing import List, Dict
 import re
+import time 
 
 # =====================
 # Configuration
@@ -111,7 +112,12 @@ def fetch_arxiv_articles(categories: List[str], max_results: int = 50) -> List[D
     # Cutoff date: 7 days ago
     cutoff_date = datetime.now() - timedelta(days=7)
     
-    for category in categories:
+    # Headers with User-Agent
+    headers = {
+        'User-Agent': 'ArXiv-Research-Dashboard/1.0'
+    }
+    
+    for i, category in enumerate(categories):
         print(f"📡 Querying ArXiv for: {category} (last 7 days)")
         
         base_url = "http://export.arxiv.org/api/query"
@@ -123,7 +129,7 @@ def fetch_arxiv_articles(categories: List[str], max_results: int = 50) -> List[D
         }
         
         try:
-            response = requests.get(base_url, params=params, timeout=30)
+            response = requests.get(base_url, params=params, headers=headers, timeout=30)
             response.raise_for_status()
             
             root = ET.fromstring(response.content)
@@ -152,7 +158,7 @@ def fetch_arxiv_articles(categories: List[str], max_results: int = 50) -> List[D
                     published_elem.text.replace('Z', '+00:00')
                 )
                 
-                # ⭐ Filter by date (last 7 days)
+                # Filter by date (last 7 days)
                 if published_date < cutoff_date:
                     continue
                 
@@ -186,6 +192,11 @@ def fetch_arxiv_articles(categories: List[str], max_results: int = 50) -> List[D
             
         except Exception as e:
             print(f"  ❌ Error fetching {category}: {e}")
+        
+        # Wait 3 seconds between categories (ArXiv rate limit)
+        if i < len(categories) - 1:
+            print(f"  ⏳ Waiting 3 seconds before next category...")
+            time.sleep(3)
     
     # Sort by relevance then date
     all_entries.sort(key=lambda x: (x['relevance'], x['published']), reverse=True)
