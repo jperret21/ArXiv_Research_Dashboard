@@ -84,7 +84,7 @@ def fetch_arxiv(categories: List[str], days: int) -> List[Dict]:
                     "search_query": f"cat:{cat}",
                     "sortBy": "submittedDate",
                     "sortOrder": "descending",
-                    "max_results": 10  # Reduced for debugging
+                    "max_results": 50
                 },
                 headers=headers,
                 timeout=30
@@ -94,95 +94,71 @@ def fetch_arxiv(categories: List[str], days: int) -> List[Dict]:
             
             root = ET.fromstring(response.content)
             
-            # Try different namespace approaches
-            print(f"  Trying to find entries...")
-            
-            # Method 1: With default namespace
+            # Use default namespace
             ns = {'': 'http://www.w3.org/2005/Atom'}
             entries = root.findall('entry', ns)
-            print(f"  Method 1 (default ns): {len(entries)} entries")
             
-            # Method 2: With explicit namespace
-            if not entries:
-                entries = root.findall('{http://www.w3.org/2005/Atom}entry')
-                print(f"  Method 2 (explicit ns): {len(entries)} entries")
-            
-            # Method 3: Without namespace
-            if not entries:
-                entries = root.findall('.//entry')
-                print(f"  Method 3 (no ns): {len(entries)} entries")
-            
-            print(f"  Total entries found: {len(entries)}")
+            print(f"  Found {len(entries)} entries")
             
             count = 0
             for idx, entry in enumerate(entries, 1):
-                print(f"\n  Entry #{idx}:")
                 
-                # Try to find title multiple ways
-                title = None
-                for method in [
-                    ('find with ns', lambda: entry.find('title', ns)),
-                    ('find explicit', lambda: entry.find('{http://www.w3.org/2005/Atom}title')),
-                    ('find no ns', lambda: entry.find('title'))
-                ]:
-                    name, func = method
-                    try:
-                        title = func()
-                        if title is not None:
-                            print(f"    Title found using: {name}")
-                            print(f"    Title text: {title.text[:50] if title.text else 'None'}...")
-                            break
-                    except:
-                        pass
+                # ⭐ FIX: Extract elements correctly with namespace
+                title_elem = entry.find('title', ns)
+                link_elem = entry.find('id', ns)
+                date_elem = entry.find('published', ns)
+                abstract_elem = entry.find('summary', ns)
+                author_elems = entry.findall('author/name', ns)
                 
-                # Same for other fields
-                link = entry.find('id', ns) or entry.find('{http://www.w3.org/2005/Atom}id')
-                date = entry.find('published', ns) or entry.find('{http://www.w3.org/2005/Atom}published')
-                abstract = entry.find('summary', ns) or entry.find('{http://www.w3.org/2005/Atom}summary')
+                if idx <= 3:
+                    print(f"\n  Entry #{idx}: {title_elem.text[:50] if title_elem is not None and title_elem.text else 'NO TITLE'}...")
+                    print(f"    Title: {'✅' if title_elem is not None else '❌'}")
+                    print(f"    Link: {'✅' if link_elem is not None else '❌'}")
+                    print(f"    Date: {'✅' if date_elem is not None else '❌'}")
+                    print(f"    Abstract: {'✅' if abstract_elem is not None else '❌'}")
                 
-                print(f"    Link: {'✅' if link is not None else '❌'}")
-                print(f"    Date: {'✅' if date is not None else '❌'}")
-                print(f"    Abstract: {'✅' if abstract is not None else '❌'}")
-                
-                if not all([title, link, date, abstract]):
-                    print(f"    ❌ Skipping: missing elements")
-                    if idx == 1:
-                        # For first entry, show what we got
-                        print(f"    DEBUG - Raw entry XML (first 500 chars):")
-                        print(f"    {ET.tostring(entry, encoding='unicode')[:500]}")
+                # ⭐ Check if all elements exist
+                if not all([title_elem is not None, link_elem is not None, 
+                           date_elem is not None, abstract_elem is not None]):
+                    if idx <= 3:
+                        print(f"    ❌ Skipping: missing elements")
                     continue
                 
                 # Parse date
-                pub_date = datetime.fromisoformat(date.text.replace('Z', '+00:00'))
+                pub_date = datetime.fromisoformat(date_elem.text.replace('Z', '+00:00'))
                 days_old = (now - pub_date).days
                 
-                print(f"    Published: {pub_date}")
-                print(f"    Days old: {days_old}")
-                print(f"    Pass cutoff: {pub_date >= cutoff}")
+                if idx <= 3:
+                    print(f"    Published: {pub_date.strftime('%Y-%m-%d')}")
+                    print(f"    Days old: {days_old}")
+                    print(f"    Pass cutoff: {pub_date >= cutoff}")
                 
                 if pub_date < cutoff:
-                    print(f"    ❌ Filtered: too old")
+                    if idx <= 3:
+                        print(f"    ❌ Filtered: too old")
                     continue
                 
-                print(f"    ✅ In date range!")
+                if idx <= 3:
+                    print(f"    ✅ In date range!")
                 
-                title_text = ' '.join(title.text.split())
-                abstract_text = ' '.join(abstract.text.split())
+                title_text = ' '.join(title_elem.text.split())
+                abstract_text = ' '.join(abstract_elem.text.split())
                 
                 score, keywords = calculate_relevance(title_text, abstract_text)
-                print(f"    Score: {score}/5 | Keywords: {keywords}")
                 
-                arxiv_id = re.search(r'(\d{4}\.\d{4,5})', link.text)
-                pdf = f"https://arxiv.org/pdf/{arxiv_id.group(1)}.pdf" if arxiv_id else link.text
+                if idx <= 3:
+                    print(f"    Score: {score}/5 | Keywords: {keywords}")
                 
-                authors = entry.findall('author/name', ns) or entry.findall('{http://www.w3.org/2005/Atom}author/{http://www.w3.org/2005/Atom}name')
-                authors_str = ', '.join([a.text for a in authors[:3]])
-                if len(authors) > 3:
+                arxiv_id = re.search(r'(\d{4}\.\d{4,5})', link_elem.text)
+                pdf = f"https://arxiv.org/pdf/{arxiv_id.group(1)}.pdf" if arxiv_id else link_elem.text
+                
+                authors_str = ', '.join([a.text for a in author_elems[:3]])
+                if len(author_elems) > 3:
                     authors_str += " et al."
                 
                 articles.append({
                     'title': title_text,
-                    'link': link.text,
+                    'link': link_elem.text,
                     'pdf': pdf,
                     'date': pub_date,
                     'abstract': abstract_text[:2000],
@@ -192,16 +168,17 @@ def fetch_arxiv(categories: List[str], days: int) -> List[Dict]:
                     'keywords': keywords
                 })
                 count += 1
-                print(f"    ✅ ADDED to results")
+                
+                if idx <= 3:
+                    print(f"    ✅ ADDED!")
             
-            print(f"\n  Summary: {count} articles in date range")
+            print(f"\n  Summary: {count} articles in date range\n")
             
         except Exception as e:
             print(f"  ❌ ERROR: {e}")
             import traceback
             traceback.print_exc()
         
-        print()
         time.sleep(3)
     
     articles.sort(key=lambda x: (x['score'], x['date']), reverse=True)
