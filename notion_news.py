@@ -155,7 +155,6 @@ def add_to_notion(article: Dict, is_top: bool = False):
                 "PDF": {"url": article['pdf']},
                 "Keywords": {"rich_text": [{"text": {"content": ', '.join(article['keywords'][:5]) if article['keywords'] else 'None'}}]},
                 "Authors": {"rich_text": [{"text": {"content": article['authors']}}]},
-                "Relevance": {"select": {"name": stars}},
             },
             children=[
                 {"object": "block", "type": "callout", "callout": {
