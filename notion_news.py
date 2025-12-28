@@ -3,6 +3,9 @@ import feedparser
 from notion_client import Client
 from datetime import datetime
 
+# =====================
+# Configuration
+# =====================
 NOTION_TOKEN = os.environ["NOTION_TOKEN"]
 DATABASE_ID = os.environ["DATABASE_ID"]
 
@@ -15,42 +18,47 @@ SOURCE = os.getenv("SOURCE", "arXiv astro-ph.CO")
 
 notion = Client(auth=NOTION_TOKEN)
 
+# =====================
+# Utility Functions
+# =====================
 def fetch_existing_titles():
-    results = notion.databases.query(database_id=DATABASE_ID)["results"]
-    return {
-        r["properties"]["Title"]["title"][0]["plain_text"]
-        for r in results if r["properties"]["Title"]["title"]
-    }
+    """Fetch existing titles from the Notion database."""
+    response = notion.databases.query(database_id=DATABASE_ID)
+    results = response.get("results", [])
+    titles = set()
+    for r in results:
+        title_prop = r["properties"]["Title"]["title"]
+        if title_prop:
+            titles.add(title_prop[0]["text"]["content"])
+    return titles
 
 def add_entry(entry):
+    """Add a new article entry to the Notion database."""
     notion.pages.create(
         parent={"database_id": DATABASE_ID},
         properties={
-            "Title": {
-                "title": [{"text": {"content": entry.title}}]
-            },
+            "Title": {"title": [{"text": {"content": entry.title}}]},
             "URL": {"url": entry.link},
-            "Date": {
-                "date": {
-                    "start": datetime(*entry.published_parsed[:6]).isoformat()
-                }
-            },
-            "Source": {
-                "select": {"name": SOURCE}
-            },
+            "Date": {"date": {"start": datetime(*entry.published_parsed[:6]).isoformat()}},
+            "Source": {"select": {"name": SOURCE}},
         },
     )
 
 def trim_database():
-    pages = notion.databases.query(
+    """Archive the oldest entries if the database exceeds K articles."""
+    response = notion.databases.query(
         database_id=DATABASE_ID,
         sorts=[{"property": "Date", "direction": "ascending"}],
-    )["results"]
+    )
+    pages = response.get("results", [])
 
     while len(pages) > K:
         notion.pages.update(page_id=pages[0]["id"], archived=True)
         pages.pop(0)
 
+# =====================
+# Main
+# =====================
 def main():
     feed = feedparser.parse(RSS_URL)
     existing = fetch_existing_titles()
@@ -61,5 +69,8 @@ def main():
 
     trim_database()
 
+# =====================
+# Run
+# =====================
 if __name__ == "__main__":
     main()
