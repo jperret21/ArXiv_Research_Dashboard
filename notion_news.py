@@ -18,6 +18,16 @@ notion = Client(auth=NOTION_TOKEN)
 # =====================
 # Functions
 # =====================
+def test_database_connection():
+    """Test if we can access the Notion database."""
+    try:
+        db = notion.databases.retrieve(database_id=DATABASE_ID)
+        print(f"✅ Database connection successful. Database name: {db.get('title', [{'text': {'content': 'Unknown'}}])[0]['text']['content']}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to connect to database: {e}")
+        return False
+
 def fetch_existing_titles():
     """Fetch existing titles from the Notion database (v2.x)."""
     try:
@@ -64,6 +74,10 @@ def trim_database():
         pages.pop(0)
 
 def main():
+    if not test_database_connection():
+        print("Cannot proceed because database connection failed.")
+        return
+
     feed = feedparser.parse(RSS_URL)
     existing = fetch_existing_titles()
 
