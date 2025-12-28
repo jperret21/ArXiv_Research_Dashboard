@@ -5,15 +5,17 @@ keywords:
     - neutron star
     - LIGO
     - merger
-    - lensing
+    - gravitational lensing
   
   medium_priority:
     - cosmology
-    - relativity
     - dark matter
+    - dark energy
+    - relativity
     - spacetime
     - Einstein
     - metric
+    - curvature
   
   low_priority:
     - numerical
@@ -23,6 +25,6 @@ arxiv_categories:
   - gr-qc
   - astro-ph.CO
 
-days_lookback: 14  # Look back 14 days for testing (change to 7 after holidays)
-max_articles: 20   # Keep 20 most recent articles in Notion
-top_n: 5           # Mark top 5 as priority reading
+days_lookback: 7  # Back to 7 now that holidays are over
+max_articles: 20
+top_n: 5
