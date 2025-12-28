@@ -2,8 +2,8 @@ name: Update Notion News
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Runs every hour
-  workflow_dispatch:      # Allows manual trigger
+    - cron: '0 * * * *'  # Every hour
+  workflow_dispatch:
 
 jobs:
   notion_sync:
@@ -17,7 +17,7 @@ jobs:
       DATABASE_ID: ${{ secrets.DATABASE_ID }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Set up Python
@@ -28,18 +28,21 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install feedparser
-          pip install notion-client==1.0.0  # v1.x compatible with your current script
+          pip install feedparser notion-client
 
-      - name: Check Notion secrets
+      - name: Test Notion access
         run: |
-          echo "DATABASE_ID length: ${DATABASE_ID}"
-          if [ -z "${NOTION_TOKEN}" ]; then
-            echo "ERROR: NOTION_TOKEN is empty!"
-            exit 1
-          else
-            echo "NOTION_TOKEN is set."
-          fi
+          python - <<EOF
+          import os
+          from notion_client import Client
+          notion = Client(auth=os.environ["NOTION_TOKEN"])
+          try:
+              r = notion.databases.retrieve(database_id=os.environ["DATABASE_ID"])
+              print("Database is accessible:", r["id"])
+          except Exception as e:
+              print("Failed to access database:", e)
+              exit(1)
+          EOF
 
       - name: Run Notion RSS Sync
         run: python notion_news_sync/notion_news.py
